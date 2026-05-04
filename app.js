@@ -28,4 +28,3 @@ app.get('/', (req, res) => {
       connectDB().then(() => {
         app.listen(SERVER_PORT, () => console.log(`🚀 Hub Bank server is actively listening on port ${SERVER_PORT}`));
         });
-        

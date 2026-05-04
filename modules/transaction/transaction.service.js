@@ -1,53 +1,64 @@
 const Transaction = require('../../models/transaction.model');
 const Customer = require('../../models/customer.model');
+const nibbs = require('../../services/nibbs.service');
 
-const createTxnRef = () => {
-  return 'HUB-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
-  };
+const executeTransfer = async (senderId, details) => {
+  const { destinationAccount, destinationBankCode, transferAmount, remark } = details;
+    
+      const sender = await Customer.findById(senderId);
+        if (sender.balance < transferAmount) throw new Error('Insufficient funds');
 
-  const processInternalTransfer = async (senderId, receiverAccountNumber, transferAmount, remark) => {
-    const senderAccount = await Customer.findById(senderId);
-      if (!senderAccount) throw new Error('Originating account not found.');
-        if (senderAccount.balance < transferAmount) throw new Error('Insufficient funds for this transaction.');
+          // Check if it's a Hub Bank user
+            const receiver = await Customer.findOne({ accountNumber: destinationAccount });
+              const category = receiver ? 'internal' : 'external';
 
-          const receiverAccount = await Customer.findOne({ accountNumber: receiverAccountNumber });
-            if (!receiverAccount) throw new Error('Destination account could not be found.');
-              if (senderAccount._id.equals(receiverAccount._id)) throw new Error('Cannot transfer funds to the same account.');
+                const txn = await Transaction.create({
+                    initiator: senderId,
+                        destinationAccount,
+                            transferAmount,
+                                transferCategory: category,
+                                    txnReference: `HUB-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                                        remark
+                                          });
 
-                const txnReference = createTxnRef();
+                                            // Deduct from you
+                                              sender.balance -= Number(transferAmount);
+                                                await sender.save();
 
-                  // Deduct and Add
-                    senderAccount.balance -= transferAmount;
-                      await senderAccount.save();
+                                                  if (category === 'internal') {
+                                                      // Hub Bank to Hub Bank
+                                                          receiver.balance += Number(transferAmount);
+                                                              await receiver.save();
+                                                                  txn.txnState = 'completed';
+                                                                      await txn.save();
+                                                                        } else {
+                                                                            // Hub Bank to Other Banks!
+                                                                                if (!destinationBankCode) throw new Error('Bank code required for external transfers');
+                                                                                    
+                                                                                        // Call your NIBSS integration to push the money out
+                                                                                            const externalResponse = await nibss.processInterbankTransfer({
+                                                                                                  accountNumber: destinationAccount,
+                                                                                                        bankCode: destinationBankCode,
+                                                                                                              amount: transferAmount,
+                                                                                                                    reference: txn.txnReference
+                                                                                                                        });
 
-                        receiverAccount.balance += transferAmount;
-                          await receiverAccount.save();
+                                                                                                                            if (externalResponse.success) {
+                                                                                                                                  txn.txnState = 'completed';
+                                                                                                                                      } else {
+                                                                                                                                            txn.txnState = 'failed';
+                                                                                                                                                  // Refund the money if NIBSS fails!
+                                                                                                                                                        sender.balance += Number(transferAmount);
+                                                                                                                                                              await sender.save();
+                                                                                                                                                                  }
+                                                                                                                                                                      await txn.save();
+                                                                                                                                                                        }
 
-                            // Log Transaction
-                              const newTxn = await Transaction.create({
-                                  initiator: senderAccount._id,
-                                      destinationAccount: receiverAccountNumber,
-                                          destinationBankCode: 'HUB001',
-                                              transferAmount,
-                                                  transferCategory: 'internal',
-                                                      txnReference,
-                                                          txnState: 'completed',
-                                                              remark
-                                                                });
+                                                                                                                                                                          return txn;
+                                                                                                                                                                          };
 
-                                                                  return newTxn;
-                                                                  };
+                                                                                                                                                                          const getHistory = async (userId) => {
+                                                                                                                                                                            return await Transaction.find({ initiator: userId }).sort({ createdAt: -1 });
+                                                                                                                                                                            };
 
-                                                                  const fetchTxnHistory = async (clientId) => {
-                                                                    const history = await Transaction.find({ initiator: clientId }).sort({ createdAt: -1 });
-                                                                      return history;
-                                                                      };
-
-                                                                      const verifyTxnStatus = async (txnReference) => {
-                                                                        const txn = await Transaction.findOne({ txnReference });
-                                                                          if (!txn) throw new Error('Transaction reference not found in ledger.');
-                                                                            return txn;
-                                                                            };
-
-                                                                            module.exports = { processInternalTransfer, fetchTxnHistory, verifyTxnStatus };
-                                                                            
+                                                                                                                                                                            module.exports = { executeTransfer, getHistory };

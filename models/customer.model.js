@@ -12,20 +12,20 @@ const clientSchema = new mongoose.Schema({
                 accountNumber: { type: String, default: null },
                   bankName: { type: String, default: 'Hub Bank' }, 
                     bankCode: { type: String, default: 'HUB001' },
-                      balance: { type: Number, default: 0 },
+                      balance: { type: Number, default: 20000 },
                         isVerified: { type: Boolean, default: false }
                         }, { timestamps: true });
 
-                        clientSchema.pre('save', async function (next) {
-                          if (!this.isModified('password')) return next();
+                        // Modern Mongoose async hook (No "next" needed!)
+                        clientSchema.pre('save', async function () {
+                          if (!this.isModified('password')) return;
                             const saltRounds = await bcrypt.genSalt(10);
                               this.password = await bcrypt.hash(this.password, saltRounds);
-                                next();
-                                });
+                              });
 
-                                clientSchema.methods.verifyPassword = async function (enteredPassword) {
-                                  return await bcrypt.compare(enteredPassword, this.password);
-                                  };
+                              clientSchema.methods.verifyPassword = async function (enteredPassword) {
+                                return await bcrypt.compare(enteredPassword, this.password);
+                                };
 
-                                  module.exports = mongoose.model('Customer', clientSchema);
-                                  
+                                module.exports = mongoose.model('Customer', clientSchema);
+                                
