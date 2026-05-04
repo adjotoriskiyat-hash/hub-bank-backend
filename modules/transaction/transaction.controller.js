@@ -20,7 +20,7 @@ const handleInternalTransfer = async (req, res) => {
 
 const handleHistory = async (req, res) => {
   try {
-    // Requirement 4: Ensure user only sees THEIR own data
+    // Ensures user only sees THEIR own data
     const logs = await fetchTxnHistory(req.user._id);
     return res.status(200).json({ success: true, data: logs });
   } catch (err) {
