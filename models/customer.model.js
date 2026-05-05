@@ -12,7 +12,7 @@ const clientSchema = new mongoose.Schema({
                 accountNumber: { type: String, default: null },
                   bankName: { type: String, default: 'Hub Bank' }, 
                     bankCode: { type: String, default: 'HUB001' },
-                      balance: { type: Number, default: 20000 },
+                      balance: { type: Number, default: 15000 },
                         isVerified: { type: Boolean, default: false }
                         }, { timestamps: true });
 
